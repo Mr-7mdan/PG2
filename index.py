@@ -44,7 +44,13 @@ class DatabaseHandler(logging.Handler):
 
 # Initialize the database
 if os.environ.get('VERCEL_ENV'):
-    db = VercelKV()
+    try:
+        db = VercelKV()
+    except ValueError as e:
+        print(f"Error initializing VercelKV: {e}")
+        # Fallback to SQLite if VercelKV initialization fails
+        db_path = '/tmp/cache.sqlite'
+        db = SqliteCache(db_path)
 else:
     db_path = 'cache.sqlite'
     db = SqliteCache(db_path)
@@ -124,8 +130,8 @@ def update_env():
     return redirect(url_for('admin_panel', message='Environment variables updated successfully'))
 
 # Update the update_stats function
-async def update_stats(is_cached, sex_nudity_category, country):
-    stats = await db.get_all_stats()
+def update_stats(is_cached, sex_nudity_category, country):
+    stats = db.get_all_stats()
     current_year = datetime.now().year
     current_month = datetime.now().strftime('%Y-%m')
     current_day = datetime.now().strftime('%Y-%m-%d')
@@ -168,7 +174,7 @@ async def update_stats(is_cached, sex_nudity_category, country):
         stats['countries'] = countries
 
     # Save all stats
-    await db.set_stat('stats', stats)
+    db.set_stat('stats', stats)
 
     # Log the updated stats for debugging
     logger.info(f"Updated stats: Total Hits: {stats['total_hits']}, Cached Hits: {stats['cached_hits']}, Fresh Hits: {stats['fresh_hits']}")
@@ -254,7 +260,7 @@ def get_imdb_id_from_omdb(video_name, release_year=None):
         return None
 
 @app.route('/get_data', methods=['GET'])
-async def get_data():
+def get_data():
     try:
         app.logger.info("Received request for /get_data")
         starttime = time.time()
@@ -280,7 +286,7 @@ async def get_data():
             app.logger.info(f"Retrieved IMDB ID from OMDB: {imdb_id}, Release Year: {release_year}")
 
         key = f"{provider}:{imdb_id or video_name}"
-        cached_result = await db.get(key)
+        cached_result = db.get(key)
 
         if cached_result:
             app.logger.info(f"Cached result structure: {json.dumps(cached_result, indent=2)}")
@@ -299,7 +305,7 @@ async def get_data():
             country = get_country_from_ip(ip_address)
 
             # When calling update_stats, include the country
-            await update_stats(True, sex_nudity_category, country)
+            update_stats(True, sex_nudity_category, country)
             cached_result['is_cached'] = True
             return jsonify(cached_result)
         
@@ -359,13 +365,13 @@ async def get_data():
             country = get_country_from_ip(ip_address)
 
             # When calling update_stats, include the country
-            await update_stats(False, sex_nudity_category, country)
+            update_stats(False, sex_nudity_category, country)
             
             # Only store in cache if review-items are not null
             if review_items:
                 app.logger.info(f"Storing result in cache for {result['title']} from {provider}")
                 app.logger.info(f"Storing result in cache: {json.dumps(result, indent=2)}")
-                await db.set(key, result)
+                db.set(key, result)
             else:
                 app.logger.info(f"Not storing result in cache due to null review-items for {result['title']} from {provider}")
             

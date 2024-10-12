@@ -2,10 +2,14 @@ import os
 from redis import Redis
 import json
 from datetime import datetime
+import asyncio
 
 class VercelKV:
     def __init__(self):
-        self.redis = Redis.from_url(os.environ.get('KV_URL'))
+        kv_url = os.environ.get('KV_URL')
+        if not kv_url:
+            raise ValueError("KV_URL environment variable is not set")
+        self.redis = Redis.from_url(kv_url)
 
     # Cache methods
     async def get(self, key):
@@ -61,7 +65,7 @@ class VercelKV:
 
     # Utility methods
     def get_cached_records_count(self):
-        return len(list(self.redis.scan_iter("cache:*")))
+        return self.redis.dbsize()  # This is more efficient than scanning all keys
 
     def get_logs_count(self):
         return self.redis.llen('logs')
