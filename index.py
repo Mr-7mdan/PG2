@@ -439,66 +439,70 @@ def get_log_level_color(level):
 # Update the show_stats function
 @app.route('/stats', methods=['GET'])
 def show_stats():
-    api_status = "green" if is_api_running() else "red"
-    current_year = datetime.now().year
-    current_month = datetime.now().strftime('%Y-%m')
-    
-    # Get cached records count
-    cached_records_count = db.get_cached_records_count()
+    try:
+        api_status = "green" if is_api_running() else "red"
+        current_year = datetime.now().year
+        current_month = datetime.now().strftime('%Y-%m')
+        
+        # Get cached records count
+        cached_records_count = db.get_cached_records_count()
 
-    # Get all stats
-    stats = db.get_all_stats()
+        # Get all stats
+        stats = db.get_all_stats()
 
-    # Retrieve stats, use 0 as default if not found
-    total_hits = stats.get('total_hits', 0)
-    cached_hits = stats.get('cached_hits', 0)
-    fresh_hits = stats.get('fresh_hits', 0)
+        # Retrieve stats, use 0 as default if not found
+        total_hits = stats.get('total_hits', 0)
+        cached_hits = stats.get('cached_hits', 0)
+        fresh_hits = stats.get('fresh_hits', 0)
 
-    # Log the retrieved stats for debugging
-    logger.info(f"Retrieved stats: Total Hits: {total_hits}, Cached Hits: {cached_hits}, Fresh Hits: {fresh_hits}")
+        # Log the retrieved stats for debugging
+        logger.info(f"Retrieved stats: Total Hits: {total_hits}, Cached Hits: {cached_hits}, Fresh Hits: {fresh_hits}")
 
-    # Ensure total_hits is the sum of cached_hits and fresh_hits
-    if total_hits != cached_hits + fresh_hits:
-        logger.warning(f"Stats mismatch: Total Hits ({total_hits}) != Cached Hits ({cached_hits}) + Fresh Hits ({fresh_hits})")
-        total_hits = cached_hits + fresh_hits
-        db.set_stat('total_hits', total_hits)
+        # Ensure total_hits is the sum of cached_hits and fresh_hits
+        if total_hits != cached_hits + fresh_hits:
+            logger.warning(f"Stats mismatch: Total Hits ({total_hits}) != Cached Hits ({cached_hits}) + Fresh Hits ({fresh_hits})")
+            total_hits = cached_hits + fresh_hits
+            db.set_stat('total_hits', total_hits)
 
-    # Prepare data for charts
-    overall_data = {
-        'labels': ['Total Hits', 'Cached Hits', 'Fresh Hits'],
-        'data': [total_hits, cached_hits, fresh_hits]
-    }
-    
-    # This Year's Statistics (per month)
-    months_this_year = [f"{current_year}-{month:02d}" for month in range(1, 13)]
-    hits_by_month = stats.get('hits_by_month', {})
-    this_year_data = {
-        'labels': months_this_year,
-        'total': [hits_by_month.get(month, 0) for month in months_this_year],
-    }
-    
-    # This Month's Statistics (per day)
-    days_in_month = calendar.monthrange(current_year, int(current_month.split('-')[1]))[1]
-    days_this_month = [f"{current_month}-{day:02d}" for day in range(1, days_in_month + 1)]
-    hits_by_day = stats.get('hits_by_day', {})
-    this_month_data = {
-        'labels': days_this_month,
-        'total': [hits_by_day.get(day, 0) for day in days_this_month],
-    }
-    
-    return render_template('stats.html', 
-                           api_status=api_status,
-                           total_hits=total_hits,
-                           cached_hits=cached_hits,
-                           fresh_hits=fresh_hits,
-                           overall_data=overall_data,
-                           this_year_data=this_year_data,
-                           this_month_data=this_month_data,
-                           current_year=current_year,
-                           current_month=current_month,
-                           cached_records_count=cached_records_count,
-                           sex_nudity_categories=stats.get('sex_nudity_categories', {}),
-                           countries=stats.get('countries', {}))
+        # Prepare data for charts
+        overall_data = {
+            'labels': ['Total Hits', 'Cached Hits', 'Fresh Hits'],
+            'data': [total_hits, cached_hits, fresh_hits]
+        }
+        
+        # This Year's Statistics (per month)
+        months_this_year = [f"{current_year}-{month:02d}" for month in range(1, 13)]
+        hits_by_month = stats.get('hits_by_month', {})
+        this_year_data = {
+            'labels': months_this_year,
+            'total': [hits_by_month.get(month, 0) for month in months_this_year],
+        }
+        
+        # This Month's Statistics (per day)
+        days_in_month = calendar.monthrange(current_year, int(current_month.split('-')[1]))[1]
+        days_this_month = [f"{current_month}-{day:02d}" for day in range(1, days_in_month + 1)]
+        hits_by_day = stats.get('hits_by_day', {})
+        this_month_data = {
+            'labels': days_this_month,
+            'total': [hits_by_day.get(day, 0) for day in days_this_month],
+        }
+        
+        return render_template('stats.html', 
+                               api_status=api_status,
+                               total_hits=total_hits,
+                               cached_hits=cached_hits,
+                               fresh_hits=fresh_hits,
+                               overall_data=overall_data,
+                               this_year_data=this_year_data,
+                               this_month_data=this_month_data,
+                               current_year=current_year,
+                               current_month=current_month,
+                               cached_records_count=cached_records_count,
+                               sex_nudity_categories=stats.get('sex_nudity_categories', {}),
+                               countries=stats.get('countries', {}))
+    except Exception as e:
+        logger.error(f"Error in show_stats: {str(e)}")
+        return jsonify({"error": "An error occurred while fetching stats"}), 500
 
 @app.route('/tryout', methods=['GET', 'POST'])
 def tryout():
