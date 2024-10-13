@@ -138,53 +138,54 @@ def update_env():
 
 # Update the update_stats function
 def update_stats(is_cached, sex_nudity_category, country):
-    stats = db.get_all_stats()
-    current_year = datetime.now().year
-    current_month = datetime.now().strftime('%Y-%m')
-    current_day = datetime.now().strftime('%Y-%m-%d')
+    try:
+        stats = db.get_all_stats()
+        current_year = datetime.now().year
+        current_month = datetime.now().strftime('%Y-%m')
+        current_day = datetime.now().strftime('%Y-%m-%d')
 
-    # Initialize stats if they don't exist
-    stats['total_hits'] = stats.get('total_hits', 0) + 1
-    stats['cached_hits'] = stats.get('cached_hits', 0)
-    stats['fresh_hits'] = stats.get('fresh_hits', 0)
+        # Initialize stats if they don't exist
+        stats['total_hits'] = stats.get('total_hits', 0) + 1
+        stats['cached_hits'] = stats.get('cached_hits', 0)
+        stats['fresh_hits'] = stats.get('fresh_hits', 0)
 
-    if is_cached:
-        stats['cached_hits'] += 1
-    else:
-        stats['fresh_hits'] += 1
+        if is_cached:
+            stats['cached_hits'] += 1
+        else:
+            stats['fresh_hits'] += 1
 
-    # Update This Year's Statistics
-    hits_by_year = stats.get('hits_by_year', {})
-    hits_by_year[str(current_year)] = hits_by_year.get(str(current_year), 0) + 1
-    stats['hits_by_year'] = hits_by_year
+        # Update This Year's Statistics
+        hits_by_year = stats.get('hits_by_year', {})
+        hits_by_year[str(current_year)] = hits_by_year.get(str(current_year), 0) + 1
+        stats['hits_by_year'] = hits_by_year
 
-    # Update This Month's Statistics
-    hits_by_month = stats.get('hits_by_month', {})
-    hits_by_month[current_month] = hits_by_month.get(current_month, 0) + 1
-    stats['hits_by_month'] = hits_by_month
+        # Update This Month's Statistics
+        hits_by_month = stats.get('hits_by_month', {})
+        hits_by_month[current_month] = hits_by_month.get(current_month, 0) + 1
+        stats['hits_by_month'] = hits_by_month
 
-    # Update daily hits
-    hits_by_day = stats.get('hits_by_day', {})
-    hits_by_day[current_day] = hits_by_day.get(current_day, 0) + 1
-    stats['hits_by_day'] = hits_by_day
+        # Update daily hits
+        hits_by_day = stats.get('hits_by_day', {})
+        hits_by_day[current_day] = hits_by_day.get(current_day, 0) + 1
+        stats['hits_by_day'] = hits_by_day
 
-    # Update Sex & Nudity Categories
-    if sex_nudity_category:
-        sex_nudity_categories = stats.get('sex_nudity_categories', {})
-        sex_nudity_categories[sex_nudity_category] = sex_nudity_categories.get(sex_nudity_category, 0) + 1
-        stats['sex_nudity_categories'] = sex_nudity_categories
+        # Update Sex & Nudity Categories
+        if sex_nudity_category:
+            sex_nudity_categories = stats.get('sex_nudity_categories', {})
+            sex_nudity_categories[sex_nudity_category] = sex_nudity_categories.get(sex_nudity_category, 0) + 1
+            stats['sex_nudity_categories'] = sex_nudity_categories
 
-    # Update Countries Using the API
-    if country:
-        countries = stats.get('countries', {})
-        countries[country] = countries.get(country, 0) + 1
-        stats['countries'] = countries
+        # Update Countries Using the API
+        if country:
+            countries = stats.get('countries', {})
+            countries[country] = countries.get(country, 0) + 1
+            stats['countries'] = countries
 
-    # Save all stats
-    db.set_stat('stats', stats)
-
-    # Log the updated stats for debugging
-    logger.info(f"Updated stats: Total Hits: {stats['total_hits']}, Cached Hits: {stats['cached_hits']}, Fresh Hits: {stats['fresh_hits']}")
+        # Save all stats
+        db.set_stat('stats', stats)
+        logger.info(f"Updated stats: Total Hits: {stats['total_hits']}, Cached Hits: {stats['cached_hits']}, Fresh Hits: {stats['fresh_hits']}")
+    except Exception as e:
+        logger.error(f"Error updating stats: {str(e)}")
 
 # Initialize the GeoIP reader
 geoip_reader = geoip2.database.Reader('GeoLite2-Country.mmdb')
@@ -294,6 +295,10 @@ def get_data():
 
         key = f"{provider}:{imdb_id or video_name}"
         cached_result = db.get(key)
+        if cached_result:
+            logger.info(f"Cache hit for key: {key}")
+        else:
+            logger.info(f"Cache miss for key: {key}")
 
         if cached_result:
             app.logger.info(f"Cached result structure: {json.dumps(cached_result, indent=2)}")
@@ -376,9 +381,11 @@ def get_data():
             
             # Only store in cache if review-items are not null
             if review_items:
-                app.logger.info(f"Storing result in cache for {result['title']} from {provider}")
-                app.logger.info(f"Storing result in cache: {json.dumps(result, indent=2)}")
-                db.set(key, result)
+                try:
+                    db.set(key, result)
+                    logger.info(f"Storing result in cache for {result['title']} from {provider}")
+                except Exception as e:
+                    logger.error(f"Error storing result in cache: {str(e)}")
             else:
                 app.logger.info(f"Not storing result in cache due to null review-items for {result['title']} from {provider}")
             
@@ -389,8 +396,7 @@ def get_data():
             return jsonify({"error": "No data found"}), 404
 
     except Exception as e:
-        app.logger.error(f"Error in get_data: {str(e)}")
-        app.logger.error(f"Error traceback: {traceback.format_exc()}")
+        logger.error(f"Error in get_data: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 # Add this function to check the API status

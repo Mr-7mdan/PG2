@@ -8,67 +8,71 @@ logger = logging.getLogger(__name__)
 
 class VercelKV:
     def __init__(self):
-        kv_url = os.environ.get('KV_URL')
-        if not kv_url:
-            raise ValueError("KV_URL environment variable is not set")
-        self.redis = Redis.from_url(kv_url, socket_timeout=5, socket_connect_timeout=5, retry_on_timeout=True)
         self.fallback_storage = {}  # In-memory fallback storage
-
-    def _safe_redis_operation(self, operation, fallback_operation, default_value=None):
-        try:
-            return operation()
-        except Exception as e:
-            print(f"Redis operation failed: {str(e)}")  # Use print instead of logger
+        kv_url = os.environ.get('KV_URL')
+        if kv_url:
             try:
-                return fallback_operation()
-            except Exception as fe:
-                print(f"Fallback operation failed: {str(fe)}")  # Use print instead of logger
-                return default_value
+                self.redis = Redis.from_url(kv_url, socket_timeout=10, socket_connect_timeout=10, retry_on_timeout=True, max_connections=10)
+                self.redis.ping()  # Test the connection
+                print("Successfully connected to Redis")
+            except Exception as e:
+                print(f"Failed to connect to Redis: {str(e)}. Using fallback storage.")
+                self.redis = None
+        else:
+            print("KV_URL not set. Using fallback storage.")
+            self.redis = None
+
+    def _safe_operation(self, redis_op, fallback_op):
+        if self.redis:
+            try:
+                return redis_op()
+            except Exception as e:
+                print(f"Redis operation failed: {str(e)}. Using fallback storage.")
+                self.redis = None  # Disable Redis for future operations
+        return fallback_op()
 
     # Cache methods
     def get(self, key):
-        return self._safe_redis_operation(
+        return self._safe_operation(
             lambda: json.loads(self.redis.get(f"cache:{key}") or 'null'),
-            lambda: self.fallback_storage.get(f"cache:{key}"),
-            None
+            lambda: self.fallback_storage.get(f"cache:{key}")
         )
 
     def set(self, key, value, timeout=None):
-        self._safe_redis_operation(
+        self._safe_operation(
             lambda: self.redis.set(f"cache:{key}", json.dumps(value), ex=timeout),
             lambda: self.fallback_storage.update({f"cache:{key}": value})
         )
 
     def delete(self, key):
-        self._safe_redis_operation(
+        self._safe_operation(
             lambda: self.redis.delete(f"cache:{key}"),
             lambda: self.fallback_storage.pop(f"cache:{key}", None)
         )
 
     def clear(self):
-        self._safe_redis_operation(
+        self._safe_operation(
             lambda: [self.redis.delete(key) for key in self.redis.scan_iter("cache:*")],
             lambda: self.fallback_storage.clear()
         )
 
     # Stats methods
     def get_all_stats(self):
-        return self._safe_redis_operation(
+        return self._safe_operation(
             lambda: json.loads(self.redis.get('stats') or '{}'),
-            lambda: self.fallback_storage.get('stats', {}),
-            {}
+            lambda: self.fallback_storage.get('stats', {})
         )
 
     def set_stat(self, key, value):
         stats = self.get_all_stats()
         stats[key] = value
-        self._safe_redis_operation(
+        self._safe_operation(
             lambda: self.redis.set('stats', json.dumps(stats)),
             lambda: self.fallback_storage.update({'stats': stats})
         )
 
     def clear_stats(self):
-        self._safe_redis_operation(
+        self._safe_operation(
             lambda: self.redis.delete('stats'),
             lambda: self.fallback_storage.pop('stats', None)
         )
@@ -80,48 +84,47 @@ class VercelKV:
             'level': level,
             'message': message
         })
-        self._safe_redis_operation(
+        self._safe_operation(
             lambda: self.redis.lpush('logs', log_entry),
             lambda: self.fallback_storage.setdefault('logs', []).insert(0, log_entry)
         )
 
     def get_logs(self, limit=100, offset=0):
-        return self._safe_redis_operation(
+        return self._safe_operation(
             lambda: [json.loads(log) for log in self.redis.lrange('logs', offset, offset + limit - 1)],
             lambda: [json.loads(log) for log in self.fallback_storage.get('logs', [])[offset:offset+limit]],
             []
         )
 
     def clear_logs(self):
-        self._safe_redis_operation(
+        self._safe_operation(
             lambda: self.redis.delete('logs'),
             lambda: self.fallback_storage.pop('logs', None)
         )
 
     # OMDB cache methods
     def get_omdb_cache(self, key):
-        return self._safe_redis_operation(
+        return self._safe_operation(
             lambda: json.loads(self.redis.get(f"omdb:{key}") or 'null'),
-            lambda: self.fallback_storage.get(f"omdb:{key}"),
-            None
+            lambda: self.fallback_storage.get(f"omdb:{key}")
         )
 
     def set_omdb_cache(self, key, value):
-        self._safe_redis_operation(
+        self._safe_operation(
             lambda: self.redis.set(f"omdb:{key}", json.dumps(value)),
             lambda: self.fallback_storage.update({f"omdb:{key}": value})
         )
 
     # Utility methods
     def get_cached_records_count(self):
-        return self._safe_redis_operation(
+        return self._safe_operation(
             lambda: self.redis.dbsize(),
             lambda: len([k for k in self.fallback_storage.keys() if k.startswith('cache:')]),
             0
         )
 
     def get_logs_count(self):
-        return self._safe_redis_operation(
+        return self._safe_operation(
             lambda: self.redis.llen('logs'),
             lambda: len(self.fallback_storage.get('logs', [])),
             0

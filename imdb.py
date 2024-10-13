@@ -154,18 +154,18 @@ def imdb_parentsguide(tid, videoName):
     try:
         if new_structure and not old_structure:
             logger.info("Processing new page structure")
-            with open(f"new_structure_{tid}.html", "w", encoding="utf-8") as file:
-                file.write(html)
+            # with open(f"new_structure_{tid}.html", "w", encoding="utf-8") as file:
+            #     file.write(html)
             return process_new_structure(soup, tid, videoName, pg_url)
         elif old_structure and not new_structure:
             logger.info("Processing old page structure")
-            with open(f"old_structure_{tid}.html", "w", encoding="utf-8") as file:
-                file.write(html)
+            # with open(f"old_structure_{tid}.html", "w", encoding="utf-8") as file:
+            #     file.write(html)
             return process_old_structure(soup, tid, videoName, pg_url)
         else:
             logger.warning("Unclear page structure, defaulting to old structure")
-            with open(f"default_structure_{tid}.html", "w", encoding="utf-8") as file:
-                file.write(html)
+            # with open(f"default_structure_{tid}.html", "w", encoding="utf-8") as file:
+            #     file.write(html)
             return process_old_structure(soup, tid, videoName, pg_url)
     except Exception as e:
         logger.error(f"Error processing IMDB parents guide: {str(e)}")
