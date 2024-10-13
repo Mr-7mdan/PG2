@@ -30,6 +30,10 @@ from functools import wraps
 import asyncio
 from vercel_kv import VercelKV
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Create the Flask app instance
 app = Flask(__name__)
 
@@ -418,7 +422,7 @@ def show_logs():
     page = request.args.get('page', 1, type=int)
     per_page = 50
     offset = (page - 1) * per_page
-    logs = db.get_logs(limit=per_page, offset=offset)
+    logs = db.get_logs(limit=per_page, offset=offset) or []
     
     return render_template('logs.html', 
                            api_status=api_status,
@@ -501,7 +505,7 @@ def show_stats():
                                sex_nudity_categories=stats.get('sex_nudity_categories', {}),
                                countries=stats.get('countries', {}))
     except Exception as e:
-        logger.error(f"Error in show_stats: {str(e)}")
+        logger.error(f"Error in show_stats: {str(e)}", exc_info=True)
         return jsonify({"error": "An error occurred while fetching stats"}), 500
 
 @app.route('/tryout', methods=['GET', 'POST'])
