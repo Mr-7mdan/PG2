@@ -18,11 +18,11 @@ class VercelKV:
         try:
             return operation()
         except Exception as e:
-            logger.error(f"Redis operation failed: {str(e)}")
+            print(f"Redis operation failed: {str(e)}")  # Use print instead of logger
             try:
                 return fallback_operation()
             except Exception as fe:
-                logger.error(f"Fallback operation failed: {str(fe)}")
+                print(f"Fallback operation failed: {str(fe)}")  # Use print instead of logger
                 return default_value
 
     # Cache methods
@@ -82,7 +82,7 @@ class VercelKV:
         })
         self._safe_redis_operation(
             lambda: self.redis.lpush('logs', log_entry),
-            lambda: self.fallback_storage.setdefault('logs', []).append(log_entry)
+            lambda: self.fallback_storage.setdefault('logs', []).insert(0, log_entry)
         )
 
     def get_logs(self, limit=100, offset=0):

@@ -31,7 +31,7 @@ import asyncio
 from vercel_kv import VercelKV
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 logger = logging.getLogger(__name__)
 
 # Create the Flask app instance
@@ -44,7 +44,10 @@ class DatabaseHandler(logging.Handler):
         self.db = db
 
     def emit(self, record):
-        self.db.add_log(record.levelname, self.format(record))
+        try:
+            self.db.add_log(record.levelname, self.format(record))
+        except Exception as e:
+            print(f"Error in DatabaseHandler: {str(e)}")  # Use print for error reporting
 
 # Initialize the database
 if os.environ.get('VERCEL_ENV'):
@@ -404,14 +407,10 @@ def api_documentation():
 # Update the logging configuration
 @app.before_first_request
 def setup_logging():
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
     app.logger.setLevel(logging.INFO)
 
-    class SQLiteHandler(logging.Handler):
-        def emit(self, record):
-            db.add_log(record.levelname, self.format(record))
-
-    handler = SQLiteHandler()
+    handler = DatabaseHandler(db)
     handler.setLevel(logging.INFO)
     app.logger.addHandler(handler)
 
@@ -569,13 +568,13 @@ def tryout():
 # Run the Flask app
 if __name__ == '__main__':
     # Log some initial information
-    logger.info("Application started")
+    print("Application started")
     
     host = "0.0.0.0"
     port = 8080
-    logger.info(f"Server starting on http://{host}:{port}")
-    logger.info(f"API documentation available at http://{host}:{port}/")
-    logger.info(f"API endpoint: http://{host}:{port}/get_data")
-    logger.info(f"Status endpoint: http://{host}:{port}/status")
-    logger.info(f"Stats dashboard: http://{host}:{port}/stats")
+    print(f"Server starting on http://{host}:{port}")
+    print(f"API documentation available at http://{host}:{port}/")
+    print(f"API endpoint: http://{host}:{port}/get_data")
+    print(f"Status endpoint: http://{host}:{port}/status")
+    print(f"Stats dashboard: http://{host}:{port}/stats")
     serve(TransLogger(app, setup_console_handler=False), host=host, port=port)
