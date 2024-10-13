@@ -31,16 +31,31 @@ class VercelKV:
                 self.redis = None  # Disable Redis for future operations
         return fallback_op()
 
+    def _safe_json_dumps(self, data):
+        try:
+            return json.dumps(data, ensure_ascii=False)
+        except Exception as e:
+            logger.error(f"JSON encoding error: {str(e)}")
+            return json.dumps(str(data))
+
+    def _safe_json_loads(self, data):
+        try:
+            return json.loads(data) if data else None
+        except Exception as e:
+            logger.error(f"JSON decoding error: {str(e)}")
+            return None
+
     # Cache methods
     def get(self, key):
         return self._safe_operation(
-            lambda: json.loads(self.redis.get(f"cache:{key}") or 'null'),
+            lambda: self._safe_json_loads(self.redis.get(f"cache:{key}")),
             lambda: self.fallback_storage.get(f"cache:{key}")
         )
 
     def set(self, key, value, timeout=None):
+        json_value = self._safe_json_dumps(value)
         self._safe_operation(
-            lambda: self.redis.set(f"cache:{key}", json.dumps(value), ex=timeout),
+            lambda: self.redis.set(f"cache:{key}", json_value, ex=timeout),
             lambda: self.fallback_storage.update({f"cache:{key}": value})
         )
 
@@ -59,15 +74,16 @@ class VercelKV:
     # Stats methods
     def get_all_stats(self):
         return self._safe_operation(
-            lambda: json.loads(self.redis.get('stats') or '{}'),
+            lambda: self._safe_json_loads(self.redis.get('stats')) or {},
             lambda: self.fallback_storage.get('stats', {})
         )
 
     def set_stat(self, key, value):
         stats = self.get_all_stats()
         stats[key] = value
+        json_stats = self._safe_json_dumps(stats)
         self._safe_operation(
-            lambda: self.redis.set('stats', json.dumps(stats)),
+            lambda: self.redis.set('stats', json_stats),
             lambda: self.fallback_storage.update({'stats': stats})
         )
 
@@ -79,7 +95,7 @@ class VercelKV:
 
     # Log methods
     def add_log(self, level, message):
-        log_entry = json.dumps({
+        log_entry = self._safe_json_dumps({
             'timestamp': datetime.now().isoformat(),
             'level': level,
             'message': message
@@ -93,8 +109,8 @@ class VercelKV:
 
     def get_logs(self, limit=100, offset=0):
         logs = self._safe_operation(
-            lambda: [json.loads(log) for log in self.redis.lrange('logs', offset, offset + limit - 1)],
-            lambda: [json.loads(log) for log in self.fallback_storage.get('logs', [])[offset:offset+limit]]
+            lambda: [self._safe_json_loads(log) for log in self.redis.lrange('logs', offset, offset + limit - 1)],
+            lambda: [self._safe_json_loads(log) for log in self.fallback_storage.get('logs', [])[offset:offset+limit]]
         )
         logger.info(f"Retrieved {len(logs)} logs")
         return logs

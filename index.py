@@ -385,7 +385,7 @@ def get_data():
                     db.set(key, result)
                     logger.info(f"Storing result in cache for {result['title']} from {provider}")
                 except Exception as e:
-                    logger.error(f"Error storing result in cache: {str(e)}")
+                    logger.error(f"Error storing result in cache: {str(e)}", exc_info=True)
             else:
                 app.logger.info(f"Not storing result in cache due to null review-items for {result['title']} from {provider}")
             
@@ -397,7 +397,7 @@ def get_data():
 
     except Exception as e:
         logger.error(f"Error in get_data: {str(e)}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred"}), 500
 
 # Add this function to check the API status
 def is_api_running():
