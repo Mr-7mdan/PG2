@@ -428,6 +428,7 @@ def show_logs():
     per_page = 50
     offset = (page - 1) * per_page
     logs = db.get_logs(limit=per_page, offset=offset) or []
+    logger.info(f"Retrieved {len(logs)} logs for page {page}")
     
     return render_template('logs.html', 
                            api_status=api_status,

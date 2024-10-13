@@ -84,16 +84,20 @@ class VercelKV:
             'level': level,
             'message': message
         })
-        self._safe_operation(
+        result = self._safe_operation(
             lambda: self.redis.lpush('logs', log_entry),
             lambda: self.fallback_storage.setdefault('logs', []).insert(0, log_entry)
         )
+        logger.info(f"Log added: {log_entry}")
+        return result
 
     def get_logs(self, limit=100, offset=0):
-        return self._safe_operation(
+        logs = self._safe_operation(
             lambda: [json.loads(log) for log in self.redis.lrange('logs', offset, offset + limit - 1)],
             lambda: [json.loads(log) for log in self.fallback_storage.get('logs', [])[offset:offset+limit]]
         )
+        logger.info(f"Retrieved {len(logs)} logs")
+        return logs
 
     def clear_logs(self):
         self._safe_operation(
