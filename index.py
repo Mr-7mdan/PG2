@@ -430,6 +430,9 @@ def show_logs():
     logs = db.get_logs(limit=per_page, offset=offset) or []
     logger.info(f"Retrieved {len(logs)} logs for page {page}")
     
+    # Filter out None values and ensure all logs are dictionaries
+    logs = [log for log in logs if isinstance(log, dict)]
+    
     return render_template('logs.html', 
                            api_status=api_status,
                            logs=logs,
@@ -454,47 +457,31 @@ def show_stats():
         current_year = datetime.now().year
         current_month = datetime.now().strftime('%Y-%m')
         
-        # Get cached records count
         cached_records_count = db.get_cached_records_count()
-
-        # Get all stats
         stats = db.get_all_stats()
-
-        # Retrieve stats, use 0 as default if not found
+        
+        logger.info(f"Retrieved stats: {stats}")
+        
         total_hits = stats.get('total_hits', 0)
         cached_hits = stats.get('cached_hits', 0)
         fresh_hits = stats.get('fresh_hits', 0)
 
-        # Log the retrieved stats for debugging
-        logger.info(f"Retrieved stats: Total Hits: {total_hits}, Cached Hits: {cached_hits}, Fresh Hits: {fresh_hits}")
-
-        # Ensure total_hits is the sum of cached_hits and fresh_hits
-        if total_hits != cached_hits + fresh_hits:
-            logger.warning(f"Stats mismatch: Total Hits ({total_hits}) != Cached Hits ({cached_hits}) + Fresh Hits ({fresh_hits})")
-            total_hits = cached_hits + fresh_hits
-            db.set_stat('total_hits', total_hits)
-
-        # Prepare data for charts
         overall_data = {
             'labels': ['Total Hits', 'Cached Hits', 'Fresh Hits'],
             'data': [total_hits, cached_hits, fresh_hits]
         }
         
-        # This Year's Statistics (per month)
-        months_this_year = [f"{current_year}-{month:02d}" for month in range(1, 13)]
         hits_by_month = stats.get('hits_by_month', {})
         this_year_data = {
-            'labels': months_this_year,
-            'total': [hits_by_month.get(month, 0) for month in months_this_year],
+            'labels': [f"{current_year}-{month:02d}" for month in range(1, 13)],
+            'total': [hits_by_month.get(f"{current_year}-{month:02d}", 0) for month in range(1, 13)],
         }
         
-        # This Month's Statistics (per day)
-        days_in_month = calendar.monthrange(current_year, int(current_month.split('-')[1]))[1]
-        days_this_month = [f"{current_month}-{day:02d}" for day in range(1, days_in_month + 1)]
         hits_by_day = stats.get('hits_by_day', {})
+        days_in_month = calendar.monthrange(current_year, int(current_month.split('-')[1]))[1]
         this_month_data = {
-            'labels': days_this_month,
-            'total': [hits_by_day.get(day, 0) for day in days_this_month],
+            'labels': [f"{current_month}-{day:02d}" for day in range(1, days_in_month + 1)],
+            'total': [hits_by_day.get(f"{current_month}-{day:02d}", 0) for day in range(1, days_in_month + 1)],
         }
         
         return render_template('stats.html', 

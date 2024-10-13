@@ -33,15 +33,17 @@ class VercelKV:
 
     def _safe_json_dumps(self, data):
         try:
-            return json.dumps(data, ensure_ascii=False)
+            return json.dumps(data, ensure_ascii=False, default=str)
         except Exception as e:
             logger.error(f"JSON encoding error: {str(e)}")
             return json.dumps(str(data))
 
     def _safe_json_loads(self, data):
+        if not data:
+            return None
         try:
-            return json.loads(data) if data else None
-        except Exception as e:
+            return json.loads(data)
+        except json.JSONDecodeError as e:
             logger.error(f"JSON decoding error: {str(e)}")
             return None
 
