@@ -14,12 +14,12 @@ class VercelKV:
             try:
                 self.redis = Redis.from_url(kv_url, socket_timeout=10, socket_connect_timeout=10, retry_on_timeout=True, max_connections=10)
                 self.redis.ping()  # Test the connection
-                print("Successfully connected to Redis")
+                logger.info("Successfully connected to Redis")
             except Exception as e:
-                print(f"Failed to connect to Redis: {str(e)}. Using fallback storage.")
+                logger.error(f"Failed to connect to Redis: {str(e)}. Using fallback storage.")
                 self.redis = None
         else:
-            print("KV_URL not set. Using fallback storage.")
+            logger.warning("KV_URL not set. Using fallback storage.")
             self.redis = None
 
     def _safe_operation(self, redis_op, fallback_op):
@@ -27,7 +27,7 @@ class VercelKV:
             try:
                 return redis_op()
             except Exception as e:
-                print(f"Redis operation failed: {str(e)}. Using fallback storage.")
+                logger.error(f"Redis operation failed: {str(e)}. Using fallback storage.")
                 self.redis = None  # Disable Redis for future operations
         return fallback_op()
 
@@ -92,8 +92,7 @@ class VercelKV:
     def get_logs(self, limit=100, offset=0):
         return self._safe_operation(
             lambda: [json.loads(log) for log in self.redis.lrange('logs', offset, offset + limit - 1)],
-            lambda: [json.loads(log) for log in self.fallback_storage.get('logs', [])[offset:offset+limit]],
-            []
+            lambda: [json.loads(log) for log in self.fallback_storage.get('logs', [])[offset:offset+limit]]
         )
 
     def clear_logs(self):
@@ -119,15 +118,13 @@ class VercelKV:
     def get_cached_records_count(self):
         return self._safe_operation(
             lambda: self.redis.dbsize(),
-            lambda: len([k for k in self.fallback_storage.keys() if k.startswith('cache:')]),
-            0
+            lambda: len([k for k in self.fallback_storage.keys() if k.startswith('cache:')])
         )
 
     def get_logs_count(self):
         return self._safe_operation(
             lambda: self.redis.llen('logs'),
-            lambda: len(self.fallback_storage.get('logs', [])),
-            0
+            lambda: len(self.fallback_storage.get('logs', []))
         )
 
     def get_stats_count(self):
